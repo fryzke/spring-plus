@@ -7,11 +7,13 @@ import org.example.expert.domain.user.enums.UserRole;
 public class AuthUser {
 
     private final Long id;
+    private final String name;
     private final String email;
     private final UserRole userRole;
 
-    public AuthUser(Long id, String email, UserRole userRole) {
+    public AuthUser(Long id, String name,String email, UserRole userRole) {
         this.id = id;
+        this.name = name;
         this.email = email;
         this.userRole = userRole;
     }

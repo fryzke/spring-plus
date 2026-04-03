@@ -10,7 +10,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class SignupRequest {
-
+    @NotBlank
+    private String name;
     @NotBlank @Email
     private String email;
     @NotBlank
