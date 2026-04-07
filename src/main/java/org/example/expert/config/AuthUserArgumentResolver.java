@@ -1,12 +1,13 @@
 package org.example.expert.config;
 
-import jakarta.servlet.http.HttpServletRequest;
+import lombok.NonNull;
 import org.example.expert.domain.auth.exception.AuthException;
 import org.example.expert.domain.common.annotation.Auth;
 import org.example.expert.domain.common.dto.AuthUser;
-import org.example.expert.domain.user.enums.UserRole;
 import org.springframework.core.MethodParameter;
 import org.springframework.lang.Nullable;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.support.WebDataBinderFactory;
 import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
@@ -19,7 +20,6 @@ public class AuthUserArgumentResolver implements HandlerMethodArgumentResolver {
         boolean hasAuthAnnotation = parameter.getParameterAnnotation(Auth.class) != null;
         boolean isAuthUserType = parameter.getParameterType().equals(AuthUser.class);
 
-        // @Auth 어노테이션과 AuthUser 타입이 함께 사용되지 않은 경우 예외 발생
         if (hasAuthAnnotation != isAuthUserType) {
             throw new AuthException("@Auth와 AuthUser 타입은 함께 사용되어야 합니다.");
         }
@@ -31,17 +31,16 @@ public class AuthUserArgumentResolver implements HandlerMethodArgumentResolver {
     public Object resolveArgument(
             @Nullable MethodParameter parameter,
             @Nullable ModelAndViewContainer mavContainer,
-            NativeWebRequest webRequest,
+            @NonNull NativeWebRequest webRequest,
             @Nullable WebDataBinderFactory binderFactory
     ) {
-        HttpServletRequest request = (HttpServletRequest) webRequest.getNativeRequest();
+        // 1. SecurityContextHolder에서 현재 인증된 정보를 가져옵니다.
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        // JwtFilter 에서 set 한 userId, email, userRole 값을 가져옴
-        Long userId = (Long) request.getAttribute("userId");
-        String name = (String) request.getAttribute("name");
-        String email = (String) request.getAttribute("email");
-        UserRole userRole = UserRole.of((String) request.getAttribute("userRole"));
+        if (authentication == null || !(authentication.getPrincipal() instanceof AuthUser)) {
+            return null; // 혹은 권한 없음 예외 발생
+        }
 
-        return new AuthUser(userId, name, email, userRole);
+        return (AuthUser) authentication.getPrincipal();
     }
 }

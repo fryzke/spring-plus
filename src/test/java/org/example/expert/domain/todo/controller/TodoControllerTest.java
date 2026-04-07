@@ -1,5 +1,8 @@
 package org.example.expert.domain.todo.controller;
 
+import org.example.expert.config.AuthUserArgumentResolver;
+import org.example.expert.config.GlobalExceptionHandler;
+import org.example.expert.config.JwtUtil;
 import org.example.expert.domain.common.dto.AuthUser;
 import org.example.expert.domain.common.exception.InvalidRequestException;
 import org.example.expert.domain.todo.dto.response.TodoResponse;
@@ -7,12 +10,15 @@ import org.example.expert.domain.todo.service.TodoService;
 import org.example.expert.domain.user.dto.response.UserResponse;
 import org.example.expert.domain.user.entity.User;
 import org.example.expert.domain.user.enums.UserRole;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.LocalDateTime;
 
@@ -21,15 +27,29 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(TodoController.class)
+@WebMvcTest({TodoController.class, GlobalExceptionHandler.class} )
+@WithMockUser
 class TodoControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
 
     @MockBean
+    private JwtUtil jwtUtil;
+
+    @MockBean
     private TodoService todoService;
 
+    @Autowired
+    private TodoController todoController;
+    @BeforeEach
+    void setUp() {
+        mockMvc = MockMvcBuilders
+                .standaloneSetup(todoController)
+                .setCustomArgumentResolvers(new AuthUserArgumentResolver())
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
+    }
     @Test
     void todo_단건_조회에_성공한다() throws Exception {
         // given
@@ -53,7 +73,7 @@ class TodoControllerTest {
         when(todoService.getTodo(todoId)).thenReturn(response);
 
         // then
-        mockMvc.perform(get("/todos/{todoId}", todoId))
+        mockMvc.perform(get("/todos/{todoId}", todoId).requestAttr("authUser", authUser))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(todoId))
                 .andExpect(jsonPath("$.title").value(title));
@@ -63,13 +83,14 @@ class TodoControllerTest {
     void todo_단건_조회_시_todo가_존재하지_않아_예외가_발생한다() throws Exception {
         // given
         long todoId = 1L;
-
+        AuthUser authUser = new AuthUser(1L, "testName", "email", UserRole.USER);
+        User user = User.fromAuthUser(authUser);
         // when
         when(todoService.getTodo(todoId))
                 .thenThrow(new InvalidRequestException("Todo not found"));
 
         // then
-        mockMvc.perform(get("/todos/{todoId}", todoId))
+        mockMvc.perform(get("/todos/{todoId}", todoId).requestAttr("authUser", authUser))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(HttpStatus.BAD_REQUEST.name()))
                 .andExpect(jsonPath("$.code").value(HttpStatus.BAD_REQUEST.value()))
